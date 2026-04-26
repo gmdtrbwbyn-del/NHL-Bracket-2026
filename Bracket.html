@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 NHL Playoffs — The Boys</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dark: #0a0e1a;
+    --navy: #0d1b3e;
+    --blue: #1a4fd6;
+    --gold: #f5a623;
+    --silver: #8a9bb5;
+    --card: #111827;
+    --border: #1e2d4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--dark); color: #e2e8f0; font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0a0e1a 0%, #0d1b3e 50%, #0a0e1a 100%);
+    border-bottom: 2px solid var(--blue);
+    padding: 20px 24px 14px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(26,79,214,0.04) 60px, rgba(26,79,214,0.04) 61px);
+  }
+  header h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2rem, 6vw, 3.5rem); letter-spacing: 0.08em; color: #fff; text-shadow: 0 0 40px rgba(26,79,214,0.6); position: relative; }
+  header p { color: var(--silver); font-size: 0.8rem; margin-top: 4px; letter-spacing: 0.12em; text-transform: uppercase; position: relative; }
+
+  .sync-bar {
+    background: #080c18;
+    border-bottom: 1px solid var(--border);
+    padding: 7px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    color: var(--silver);
+  }
+  .sync-left { display: flex; align-items: center; gap: 8px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; flex-shrink: 0; transition: background 0.3s; }
+  .sync-dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
+  .sync-dot.loading { background: var(--gold); animation: pulse 0.6s infinite; }
+  .sync-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .tabs { display: flex; gap: 4px; padding: 14px 14px 0; background: #0a0e1a; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 9px 18px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--silver); background: var(--card); border: 1px solid var(--border); border-bottom: none; white-space: nowrap; transition: all 0.2s; }
+  .tab:hover { color: #fff; background: #1a2540; }
+  .tab.active { color: #fff; background: var(--navy); border-color: var(--blue); }
+
+  .view { display: none; padding: 18px 14px; max-width: 860px; margin: 0 auto; }
+  .view.active { display: block; }
+
+  .leaderboard { display: flex; flex-direction: column; gap: 10px; }
+  .player-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 14px; transition: transform 0.15s; }
+  .player-card:hover { transform: translateX(3px); }
+  .player-card.p1 { border-color: var(--gold); background: linear-gradient(135deg, #120f00, var(--card)); }
+  .player-card.p2 { border-color: #9ca3af; }
+  .player-card.p3 { border-color: #b45309; }
+  .rank { font-family: 'Bebas Neue', sans-serif; font-size: 1.7rem; width: 34px; text-align: center; color: var(--silver); }
+  .p1 .rank { color: var(--gold); }
+  .player-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.35rem; letter-spacing: 0.04em; flex: 1; }
+  .score-box { text-align: right; }
+  .total-score { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--blue); line-height: 1; }
+  .p1 .total-score { color: var(--gold); }
+  .score-label { font-size: 0.68rem; color: var(--silver); text-transform: uppercase; letter-spacing: 0.08em; }
+  .score-breakdown { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; align-items: center; }
+  .score-pill { font-size: 0.7rem; padding: 2px 7px; border-radius: 20px; background: #1a2540; color: #94a3b8; }
+  .cup-pick { font-size: 0.7rem; padding: 2px 9px; border-radius: 20px; font-weight: 700; background: rgba(245,166,35,0.12); color: var(--gold); border: 1px solid rgba(245,166,35,0.25); }
+  .cup-pick.correct { background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3); }
+
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.08em; color: var(--silver); margin: 18px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+  .series-grid { display: flex; flex-direction: column; gap: 7px; }
+  .series-row { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 11px 15px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .series-row.done { border-color: rgba(34,197,94,0.25); }
+  .series-matchup { font-size: 0.82rem; font-weight: 600; flex: 1; color: #cbd5e1; min-width: 160px; }
+  .series-winner { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+  .series-inprogress { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: rgba(245,166,35,0.12); color: var(--gold); }
+  .series-pending { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: #1a2540; color: #64748b; }
+
+  .picks-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 4px; }
+  .picks-table th { background: var(--navy); padding: 9px 10px; text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--silver); border-bottom: 1px solid var(--border); }
+  .picks-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: #cbd5e1; }
+  .picks-table tr:hover td { background: rgba(26,79,214,0.04); }
+  .pick { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem; font-weight: 600; }
+  .pick.correct { background: rgba(34,197,94,0.18); color: #4ade80; }
+  .pick.wrong { background: rgba(239,68,68,0.14); color: #f87171; }
+  .pick.pending { background: rgba(100,116,139,0.18); color: #94a3b8; }
+  .pick.cup { background: rgba(245,166,35,0.18); color: var(--gold); font-weight: 700; }
+  .pick.cup.correct { background: rgba(34,197,94,0.18); color: #4ade80; }
+  .pick.cup.wrong { background: rgba(239,68,68,0.14); color: #f87171; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; font-size: 0.73rem; color: var(--silver); align-items: center; }
+  .ld { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .error-banner { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; color: #fca5a5; margin-bottom: 14px; }
+  .info-banner { background: rgba(26,79,214,0.1); border: 1px solid rgba(26,79,214,0.25); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; color: #93c5fd; margin-bottom: 14px; }
+
+  @media (max-width: 480px) {
+    .picks-table { font-size: 0.7rem; }
+    .picks-table th, .picks-table td { padding: 7px 5px; }
+    .player-name { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏒 2026 NHL PLAYOFFS</h1>
+  <p>The Boys Bracket Challenge</p>
+</header>
+
+<div class="sync-bar">
+  <div class="sync-left">
+    <span class="sync-dot loading" id="syncDot"></span>
+    <span id="syncStatus">Loading...</span>
+  </div>
+  <span id="lastUpdated" style="color:#475569;font-size:0.7rem"></span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('leaderboard',this)">🏆 Leaderboard</div>
+  <div class="tab" onclick="showTab('series',this)">🏒 Series</div>
+  <div class="tab" onclick="showTab('picks',this)">🎯 All Picks</div>
+</div>
+
+<div id="leaderboard" class="view active"><div style="padding:40px;text-align:center;color:var(--silver)">Loading scores...</div></div>
+<div id="series" class="view"></div>
+<div id="picks" class="view"></div>
+
+<script>
+// ── PICKS ─────────────────────────────────────────────────────────────────────
+const PLAYERS = [
+  { name:'Matt', cup:'Colorado',
+    r1:  { 'COL-LAK':'Colorado','DAL-MIN':'Minnesota','VGK-UTA':'Vegas','EDM-ANA':'Edmonton','BOS-BUF':'Boston','MTL-TBL':'Montreal','CAR-OTT':'Carolina','PIT-PHI':'Pittsburgh' },
+    r2:  ['Colorado','Edmonton','Montreal','Carolina'],
+    r3:  ['Colorado','Carolina'],
+  },
+  { name:'AJ', cup:'Edmonton',
+    r1:  { 'COL-LAK':'Colorado','DAL-MIN':'Minnesota','VGK-UTA':'Vegas','EDM-ANA':'Edmonton','BOS-BUF':'Buffalo','MTL-TBL':'Tampa Bay','CAR-OTT':'Carolina','PIT-PHI':'Pittsburgh' },
+    r2:  ['Colorado','Edmonton','Tampa Bay','Pittsburgh'],
+    r3:  ['Edmonton','Pittsburgh'],
+  },
+  { name:'Ced', cup:'Edmonton',
+    r1:  { 'COL-LAK':'Colorado','DAL-MIN':'Dallas','VGK-UTA':'Vegas','EDM-ANA':'Edmonton','BOS-BUF':'Boston','MTL-TBL':'Tampa Bay','CAR-OTT':'Carolina','PIT-PHI':'Pittsburgh' },
+    r2:  ['Colorado','Edmonton','Boston','Carolina'],
+< truncated lines 155-282 >
+  if (apiError) html += `<div class="error-banner">⚠️ Could not reach NHL API — scores may be outdated. Retrying in 5 min.</div>`;
+
+  scored.forEach((p,i) => {
+    const cc = cupWinner && p.cup === cupWinner ? 'correct' : '';
+    html += `<div class="player-card ${cls[i]||''}">
+      <div class="rank">${medals[i]||(i+1)}</div>
+      <div style="flex:1">
+        <div class="player-name">${p.name}</div>
+        <div class="score-breakdown">
+          <span class="score-pill">R1: ${p.b.r1}pt</span>
+          <span class="score-pill">R2: ${p.b.r2}pt</span>
+          <span class="score-pill">CF: ${p.b.r3}pt</span>
+          <span class="score-pill">Cup: ${p.b.cup}pt</span>
+          <span class="cup-pick ${cc}">🏒 ${p.cup}</span>
+        </div>
+      </div>
+      <div class="score-box">
+        <div class="total-score">${p.total}</div>
+        <div class="score-label">pts</div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('leaderboard').innerHTML = html;
+}
+
+function renderSeries() {
+  const rlabels = ['Round 1 (1pt)','Round 2 (2pts)','Conference Finals (3pts)','Stanley Cup Final (5pts)'];
+  let html = `<div class="info-banner">🔄 Auto-refreshes every 5 minutes from the NHL API. Points are awarded once <em>all</em> series in a round finish.</div>`;
+
+  [1,2,3,4].forEach(n => {
+    const list = seriesForRound(n);
+    html += `<div class="section-title">${rlabels[n-1]}</div><div class="series-grid">`;
+    if (!list.length) {
+      html += `<div class="series-row"><span class="series-pending">Waiting for round to begin</span></div>`;
+    } else {
+      list.forEach(s => {
+        const badge = s.winner
+          ? `<span class="series-winner">✓ ${s.winner}</span>`
+          : (s.w1||s.w2)
+            ? `<span class="series-inprogress">${s.t1} ${s.w1}–${s.w2} ${s.t2}</span>`
+            : `<span class="series-pending">Not started</span>`;
+        html += `<div class="series-row ${s.winner?'done':''}">
+          <div class="series-matchup">${s.t1} vs ${s.t2}</div>${badge}
+        </div>`;
+      });
+    }
+    html += '</div>';
+  });
+  document.getElementById('series').innerHTML = html;
+}
+
+function renderPicks() {
+  const R1 = [
+    ['COL-LAK','Colorado vs LA Kings'],['DAL-MIN','Dallas vs Minnesota'],
+    ['VGK-UTA','Vegas vs Utah'],['EDM-ANA','Edmonton vs Anaheim'],
+    ['BOS-BUF','Boston vs Buffalo'],['MTL-TBL','Montreal vs Tampa Bay'],
+    ['CAR-OTT','Carolina vs Ottawa'],['PIT-PHI','Pittsburgh vs Philadelphia'],
+  ];
+  const R2L = ['W Semi 1','W Semi 2','E Semi 1','E Semi 2'];
+  const R3L = ['Western Final','Eastern Final'];
+
+  const heads = `<tr><th>Series</th>${PLAYERS.map(p=>`<th>${p.name}</th>`).join('')}<th>Winner</th></tr>`;
+
+  function pickStatus(pick, winners, done) {
+    if (!done) return 'pending';
+    return winners.includes(pick) ? 'correct' : 'wrong';
+  }
+
+  // R1
+  const r1done = roundComplete(1);
+  let r1rows = R1.map(([k,label]) => {
+    const actual = r1Winner(k);
+    const cells = PLAYERS.map(p => {
+      const pick = p.r1[k]||'—';
+      const cls = !r1done ? 'pending' : pick===actual ? 'correct' : 'wrong';
+      return `<td><span class="pick ${cls}">${pick}</span></td>`;
+    }).join('');
+    return `<tr><td style="color:#64748b;font-size:0.72rem">${label}</td>${cells}<td style="color:${actual?'#4ade80':'#475569'};font-weight:600">${actual||'—'}</td></tr>`;
+  }).join('');
+
+  // R2
+  const r2w = winnersForRound(2), r2done = roundComplete(2);
+  let r2rows = R2L.map((label,i) => {
+    const cells = PLAYERS.map(p => {
+      const pick = p.r2[i]||'—';
+      const cls = pickStatus(pick, r2w, r2done);
+      return `<td><span class="pick ${cls}">${pick}</span></td>`;
+    }).join('');
+    const actual = r2w[i]||null;
+    return `<tr><td style="color:#64748b;font-size:0.72rem">${label}</td>${cells}<td style="color:${actual?'#4ade80':'#475569'};font-weight:600">${actual||'—'}</td></tr>`;
+  }).join('');
+
+  // R3
+  const r3w = winnersForRound(3), r3done = roundComplete(3);
+  let r3rows = R3L.map((label,i) => {
+    const cells = PLAYERS.map(p => {
+      const pick = p.r3[i]||'—';
+      const cls = pickStatus(pick, r3w, r3done);
+      return `<td><span class="pick ${cls}">${pick}</span></td>`;
+    }).join('');
+    const actual = r3w[i]||null;
+    return `<tr><td style="color:#64748b;font-size:0.72rem">${label}</td>${cells}<td style="color:${actual?'#4ade80':'#475569'};font-weight:600">${actual||'—'}</td></tr>`;
+  }).join('');
+
+  // Cup
+  const cupWinner = winnersForRound(4)[0]||null, cupDone = roundComplete(4);
+  const cupCells = PLAYERS.map(p => {
+    const cls = `cup${!cupDone ? '' : p.cup===cupWinner ? ' correct' : ' wrong'}`;
+    return `<td><span class="pick ${cls}">${p.cup}</span></td>`;
+  }).join('');
+
+  let html = `<div class="legend">
+    <span><span class="ld" style="background:#4ade80"></span>Correct</span>
+    <span><span class="ld" style="background:#f87171"></span>Wrong</span>
+    <span><span class="ld" style="background:#94a3b8"></span>Pending</span>
+    <span><span class="ld" style="background:var(--gold)"></span>Cup pick</span>
+  </div>
+  <div class="section-title">Round 1 (1pt)</div>
+  <table class="picks-table"><thead>${heads}</thead><tbody>${r1rows}</tbody></table>
+  <div class="section-title">Round 2 (2pts)</div>
+  <table class="picks-table"><thead>${heads}</thead><tbody>${r2rows}</tbody></table>
+  <div class="section-title">Conference Finals (3pts)</div>
+  <table class="picks-table"><thead>${heads}</thead><tbody>${r3rows}</tbody></table>
+  <div class="section-title">Stanley Cup Final (5pts)</div>
+  <table class="picks-table"><thead>${heads}</thead><tbody>
+    <tr><td style="color:#64748b;font-size:0.72rem">Cup Winner</td>${cupCells}<td style="color:${cupWinner?'#4ade80':'#475569'};font-weight:600">${cupWinner||'—'}</td></tr>
+  </tbody></table>`;
+
+  document.getElementById('picks').innerHTML = html;
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+function setSyncStatus(s) {
+  const dot=document.getElementById('syncDot'), lbl=document.getElementById('syncStatus');
+  dot.className='sync-dot';
+  if(s==='live'){dot.classList.add('live');lbl.textContent='Live';}
+  else if(s==='loading'){dot.classList.add('loading');lbl.textContent='Fetching NHL results...';}
+  else{dot.classList.add('error');lbl.textContent='API error — retrying';}
+}
+function showTab(id,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+fetchBracket();
+setInterval(fetchBracket, 5*60*1000);
+</script>
+</body>
+</html>
