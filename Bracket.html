@@ -126,7 +126,7 @@ const nm=c=>ABBR[c]||c;
 let seriesList=[],apiError=false;
 async function fetchBracket(){
   setSyncStatus('loading');
-  const NHL='https://api-web.nhle.com/v1/playoff-bracket/20252026';
+  const NHL='https://api-web.nhle.com/v1/playoff-bracket/2026';
   const PROXY='https://corsproxy.io/?'+encodeURIComponent(NHL);
   for(const url of [NHL,PROXY]){
     try{
