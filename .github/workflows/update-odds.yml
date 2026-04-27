@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # 🔥 THIS IS THE KEY FIX
+  contents: write
 
 jobs:
   update:
@@ -14,18 +14,123 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          persist-credentials: true   # 🔥 important
+          persist-credentials: true
 
-      - name: Fetch odds
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
         run: |
-          curl -o odds.json https://api.allorigins.win/raw?url=https://moneypuck.com/moneypuck/odds.json
+          pip install playwright
+          playwright install chromium
+
+      - name: Scrape MoneyPuck playoff odds
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          from datetime import datetime, timezone
+          from playwright.sync_api import sync_playwright
+
+          URL = "https://moneypuck.com/predictions.htm"
+
+          def pct_to_float(value):
+              if value is None:
+                  return None
+              text = str(value).strip().replace("%", "")
+              if text == "":
+                  return None
+              try:
+                  return round(float(text) / 100, 4)
+              except:
+                  return None
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              page.goto(URL, wait_until="networkidle", timeout=60000)
+              page.wait_for_timeout(3000)
+
+              tables = page.locator("table")
+              if tables.count() == 0:
+                  raise Exception("No tables found on MoneyPuck page")
+
+              table = tables.nth(0)
+
+              headers = table.locator("thead tr th").all_inner_texts()
+              if not headers:
+                  headers = table.locator("tr").nth(0).locator("th,td").all_inner_texts()
+
+              rows = []
+              tr_count = table.locator("tbody tr").count()
+
+              if tr_count == 0:
+                  tr_count = table.locator("tr").count()
+                  start = 1
+              else:
+                  start = 0
+
+              for i in range(start, tr_count):
+                  row = table.locator("tbody tr").nth(i) if table.locator("tbody tr").count() else table.locator("tr").nth(i)
+                  cells = row.locator("th,td").all_inner_texts()
+                  if len(cells) >= 5:
+                      rows.append(cells)
+
+              browser.close()
+
+          odds = {}
+
+          for cells in rows:
+              team = cells[0].strip()
+              team = re.sub(r"[^A-Z]", "", team)
+
+              if not team:
+                  continue
+
+              item = {}
+
+              for idx, header in enumerate(headers):
+                  if idx >= len(cells):
+                      continue
+
+                  h = header.lower().strip()
+                  val = pct_to_float(cells[idx])
+
+                  if val is None:
+                      continue
+
+                  if "make 2" in h or "make 2nd" in h:
+                      item["make2"] = val
+                  elif "make 3" in h or "make 3rd" in h:
+                      item["make3"] = val
+                  elif "make final" in h:
+                      item["makeFinal"] = val
+                  elif "win cup" in h:
+                      item["winCup"] = val
+
+              if item:
+                  odds[team] = item
+
+          output = {
+              "source": URL,
+              "updatedAt": datetime.now(timezone.utc).isoformat(),
+              "teams": odds
+          }
+
+          with open("odds.json", "w") as f:
+              json.dump(output, f, indent=2)
+
+          print(json.dumps(output, indent=2))
+          PY
 
       - name: Commit changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add odds.json
-          git commit -m "Update odds" || echo "No changes"
+          git commit -m "Update MoneyPuck odds" || echo "No changes"
           git push
