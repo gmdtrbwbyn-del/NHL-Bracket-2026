@@ -3,17 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <title>2026 NHL Playoffs</title>
+
 <style>
-body { background:#0a0e1a; color:white; font-family:Arial; }
-.tab { display:inline-block; padding:10px; cursor:pointer; }
-.view { display:none; }
+body { background:#0a0e1a; color:white; font-family:Arial; padding:20px; }
+.tab { display:inline-block; margin-right:10px; cursor:pointer; }
+.view { display:none; margin-top:20px; }
 .view.active { display:block; }
-.card { padding:10px; margin:6px 0; border:1px solid #333; border-radius:8px; }
+
+.card {
+  padding:12px;
+  margin:8px 0;
+  border:1px solid #333;
+  border-radius:8px;
+}
+
 .gold { border-color:gold; }
 .silver { border-color:silver; }
 .bronze { border-color:#cd7f32; }
 </style>
 </head>
+
 <body>
 
 <h1>🏒 2026 NHL PLAYOFFS</h1>
@@ -37,14 +46,36 @@ const PLAYERS = [
   {name:'Jason', cup:'Montreal'}
 ];
 
-// ---------------- FETCH ODDS ----------------
+// ---------------- FETCH + CLEAN ODDS ----------------
 async function fetchOdds(){
   try {
     const res = await fetch('odds.json');
-    return await res.json();
+    const data = await res.json();
+
+    const cleaned = {};
+
+    // 🔥 adapt to MoneyPuck structure
+    if(data && data.teams){
+      data.teams.forEach(t=>{
+        cleaned[t.name] = t.cupOdds || 0.05;
+      });
+    }
+
+    return cleaned;
+
   } catch(e){
-    console.log("Odds failed");
-    return {};
+    console.log("Odds failed, using fallback");
+
+    return {
+      "Colorado":0.18,
+      "Edmonton":0.06,
+      "Carolina":0.12,
+      "Dallas":0.11,
+      "Vegas":0.09,
+      "Boston":0.08,
+      "Pittsburgh":0.06,
+      "Montreal":0.05
+    };
   }
 }
 
@@ -55,11 +86,11 @@ function getProb(a,b,odds){
   return x/(x+y);
 }
 
-// ---------------- SIMULATION ----------------
+// ---------------- SIMULATE BRACKET ----------------
 function simulate(odds){
   const teams = Object.keys(odds);
 
-  function pickWinner(a,b){
+  function pick(a,b){
     return Math.random() < getProb(a,b,odds) ? a : b;
   }
 
@@ -68,7 +99,9 @@ function simulate(odds){
   while(round.length > 1){
     let next = [];
     for(let i=0;i<round.length;i+=2){
-      next.push(pickWinner(round[i], round[i+1]));
+      if(round[i+1]){
+        next.push(pick(round[i], round[i+1]));
+      }
     }
     round = next;
   }
@@ -76,8 +109,9 @@ function simulate(odds){
   return round[0];
 }
 
-// ---------------- RUN SIM ----------------
+// ---------------- MAIN SIM ----------------
 async function runSim(){
+
   const odds = await fetchOdds();
 
   const results = {};
@@ -86,46 +120,49 @@ async function runSim(){
   const sims = 5000;
 
   for(let i=0;i<sims;i++){
-    const winner = simulate(odds);
+
+    const cupWinner = simulate(odds);
 
     let best = -1;
     let winners = [];
 
     PLAYERS.forEach(p=>{
-      let score = (p.cup === winner) ? 5 : 0;
+      let score = (p.cup === cupWinner) ? 5 : 0;
 
       if(score > best){
         best = score;
         winners = [p.name];
       } else if(score === best){
-        winners.push(p.name];
+        winners.push(p.name);
       }
     });
 
     winners.forEach(w=>{
-      results[w] += 1/winners.length;
+      results[w] += 1 / winners.length;
     });
   }
 
+  // convert to %
   Object.keys(results).forEach(k=>{
-    results[k] = (results[k]/sims*100);
+    results[k] = (results[k] / sims * 100);
   });
 
-  renderAll(results);
+  render(results);
 }
 
 // ---------------- RENDER ----------------
-function renderAll(results){
+function render(results){
 
   const sorted = Object.entries(results)
     .sort((a,b)=>b[1]-a[1]);
 
-  // LEADERBOARD WITH MEDALS
+  // leaderboard (medals based on projection)
   let lb = "<h2>🏆 Leaderboard (Projected)</h2>";
 
   sorted.forEach(([name,val],i)=>{
-    let medal = "";
-    let cls = "card";
+
+    let medal="";
+    let cls="card";
 
     if(i===0){ medal="🥇"; cls+=" gold"; }
     else if(i===1){ medal="🥈"; cls+=" silver"; }
@@ -144,8 +181,8 @@ function renderAll(results){
 
   document.getElementById('leaderboard').innerHTML = lb;
 
-  // ODDS TAB
-  let oddsHtml = "<h2>📊 Chance to Win Pool</h2>";
+  // odds tab
+  let oddsHtml = "<h2>📊 Pool Odds</h2>";
 
   sorted.forEach(([name,val])=>{
     oddsHtml += `<div>${name}: ${val.toFixed(1)}%</div>`;
@@ -164,5 +201,6 @@ function showTab(id){
 runSim();
 
 </script>
+
 </body>
 </html>
