@@ -2,8 +2,11 @@ name: Update Odds Hourly
 
 on:
   schedule:
-    - cron: '0 * * * *'   # runs every hour
+    - cron: '0 * * * *'
   workflow_dispatch:
+
+permissions:
+  contents: write   # 🔥 THIS IS THE KEY FIX
 
 jobs:
   update:
@@ -12,15 +15,17 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true   # 🔥 important
 
       - name: Fetch odds
         run: |
           curl -o odds.json https://api.allorigins.win/raw?url=https://moneypuck.com/moneypuck/odds.json
 
-      - name: Commit and push changes
+      - name: Commit changes
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add odds.json
           git commit -m "Update odds" || echo "No changes"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push
