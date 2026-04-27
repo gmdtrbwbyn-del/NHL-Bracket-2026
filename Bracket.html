@@ -128,8 +128,8 @@ async function fetchBracket(){
   setSyncStatus('loading');
   const NHL='https://api-web.nhle.com/v1/playoff-bracket/2026';
   const PROXY='https://api.allorigins.win/raw?url='+encodeURIComponent(NHL);
-  for(const url of [NHL,PROXY]){
-    try{
+const PROXY='https://thingproxy.freeboard.io/fetch/'+NHL;
+  try{
       const ctrl=new AbortController();
       setTimeout(()=>ctrl.abort(),8000);
       const r=await fetch(url,{signal:ctrl.signal});
