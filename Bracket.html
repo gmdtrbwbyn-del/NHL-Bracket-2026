@@ -135,6 +135,7 @@ const PLAYERS = [
 ];
 const ABBR={COL:'Colorado',LAK:'LA Kings',DAL:'Dallas',MIN:'Minnesota',VGK:'Vegas',UTA:'Utah',EDM:'Edmonton',ANA:'Anaheim',BOS:'Boston',BUF:'Buffalo',MTL:'Montreal',TBL:'Tampa Bay',CAR:'Carolina',OTT:'Ottawa',PIT:'Pittsburgh',PHI:'Philadelphia'};
 const nm=c=>ABBR[c]||c;
+const displayPlayerName=n=>n==='Eric'?'Eric 🍆':n;
 let seriesList=[],apiError=false,poolProjection=null,oddsError=false;
 
 // ESPN's public scoreboard endpoint works from GitHub Pages without the NHL API CORS problem.
@@ -297,7 +298,7 @@ function renderLeaderboard(){
   if(apiError)html+=`<div class="error-banner">⚠️ Could not reach scores API — retrying in 5 min.</div>`;
   scored.forEach((p,i)=>{
     const cc=cupWinner&&p.cup===cupWinner?'correct':'';
-    html+=`<div class="player-card ${cls[i]||''}"><div class="rank">${medals[i]||(i+1)}</div><div style="flex:1"><div class="player-name">${p.name}</div><div class="score-breakdown"><span class="score-pill">R1: ${p.b.r1}pt</span><span class="score-pill">R2: ${p.b.r2}pt</span><span class="score-pill">CF: ${p.b.r3}pt</span><span class="score-pill">Cup: ${p.b.cup}pt</span><span class="cup-pick ${cc}">🏒 ${p.cup}</span></div></div><div class="score-box"><div class="total-score">${p.total}</div><div class="score-label">pts</div></div></div>`;
+    html+=`<div class="player-card ${cls[i]||''}"><div class="rank">${medals[i]||(i+1)}</div><div style="flex:1"><div class="player-name">${displayPlayerName(p.name)}</div><div class="score-breakdown"><span class="score-pill">R1: ${p.b.r1}pt</span><span class="score-pill">R2: ${p.b.r2}pt</span><span class="score-pill">CF: ${p.b.r3}pt</span><span class="score-pill">Cup: ${p.b.cup}pt</span><span class="cup-pick ${cc}">🏒 ${p.cup}</span></div></div><div class="score-box"><div class="total-score">${p.total}</div><div class="score-label">pts</div></div></div>`;
   });
   html+='</div>';
   document.getElementById('leaderboard').innerHTML=html;
@@ -335,77 +336,120 @@ function renderPicks(){
 
 
 // ---------------- POOL ODDS / PROJECTION TAB ----------------
-const FALLBACK_ODDS={
-  'Colorado':0.189,'Edmonton':0.08,'Carolina':0.12,'Dallas':0.11,'Vegas':0.095,'Boston':0.08,'Pittsburgh':0.06,'Montreal':0.059,
-  'LA Kings':0.05,'Minnesota':0.05,'Utah':0.035,'Anaheim':0.025,'Buffalo':0.045,'Tampa Bay':0.07,'Ottawa':0.035,'Philadelphia':0.025
+// Accurate pool model: uses MoneyPuck round probabilities from odds.json,
+// simulates the actual bracket path, scores every full bracket, and counts pool winners.
+const TEAM_CODE={
+  'Colorado':'COL','LA Kings':'LAK','Dallas':'DAL','Minnesota':'MIN','Vegas':'VGK','Utah':'UTA','Edmonton':'EDM','Anaheim':'ANA',
+  'Boston':'BOS','Buffalo':'BUF','Montreal':'MTL','Tampa Bay':'TBL','Carolina':'CAR','Ottawa':'OTT','Pittsburgh':'PIT','Philadelphia':'PHI'
 };
-function shortTeamName(raw){
-  if(!raw)return '';
-  const s=String(raw).trim();
-  const map={'Colorado Avalanche':'Colorado','Avalanche':'Colorado','COL':'Colorado','Edmonton Oilers':'Edmonton','Oilers':'Edmonton','EDM':'Edmonton','Montreal Canadiens':'Montreal','Canadiens':'Montreal','MTL':'Montreal','Carolina Hurricanes':'Carolina','Hurricanes':'Carolina','CAR':'Carolina','Dallas Stars':'Dallas','Stars':'Dallas','DAL':'Dallas','Vegas Golden Knights':'Vegas','Golden Knights':'Vegas','VGK':'Vegas','VGS':'Vegas','Boston Bruins':'Boston','Bruins':'Boston','BOS':'Boston','Pittsburgh Penguins':'Pittsburgh','Penguins':'Pittsburgh','PIT':'Pittsburgh','Los Angeles Kings':'LA Kings','LA Kings':'LA Kings','Kings':'LA Kings','LAK':'LA Kings','LA':'LA Kings','Minnesota Wild':'Minnesota','Wild':'Minnesota','MIN':'Minnesota','Utah Mammoth':'Utah','Utah Hockey Club':'Utah','Mammoth':'Utah','UTA':'Utah','UTAH':'Utah','Anaheim Ducks':'Anaheim','Ducks':'Anaheim','ANA':'Anaheim','Buffalo Sabres':'Buffalo','Sabres':'Buffalo','BUF':'Buffalo','Tampa Bay Lightning':'Tampa Bay','Lightning':'Tampa Bay','TBL':'Tampa Bay','TB':'Tampa Bay','Ottawa Senators':'Ottawa','Senators':'Ottawa','OTT':'Ottawa','Philadelphia Flyers':'Philadelphia','Flyers':'Philadelphia','PHI':'Philadelphia'};
-  return map[s]||s;
-}
+const CODE_TEAM=Object.fromEntries(Object.entries(TEAM_CODE).map(([k,v])=>[v,k]));
+CODE_TEAM.LA='LA Kings'; CODE_TEAM.TB='Tampa Bay'; CODE_TEAM.VGS='Vegas'; CODE_TEAM.UTAH='Utah';
+
+const FALLBACK_ROUND_ODDS={
+  CAR:{make2:1.000,make3:0.666,makeFinal:0.371,winCup:0.208},
+  COL:{make2:1.000,make3:0.574,makeFinal:0.354,winCup:0.191},
+  BUF:{make2:0.902,make3:0.509,makeFinal:0.260,winCup:0.133},
+  VGK:{make2:0.379,make3:0.249,makeFinal:0.123,winCup:0.065},
+  MIN:{make2:0.489,make3:0.212,makeFinal:0.121,winCup:0.063},
+  UTA:{make2:0.621,make3:0.340,makeFinal:0.139,winCup:0.062},
+  TBL:{make2:0.564,make3:0.259,makeFinal:0.122,winCup:0.059},
+  DAL:{make2:0.511,make3:0.214,makeFinal:0.117,winCup:0.055},
+  PHI:{make2:0.862,make3:0.286,makeFinal:0.123,winCup:0.051},
+  ANA:{make2:0.831,make3:0.329,makeFinal:0.112,winCup:0.042},
+  MTL:{make2:0.436,make3:0.183,makeFinal:0.080,winCup:0.036},
+  EDM:{make2:0.169,make3:0.081,makeFinal:0.034,winCup:0.015},
+  LAK:{make2:0.000,make3:0.000,makeFinal:0.000,winCup:0.000},
+  BOS:{make2:0.098,make3:0.030,makeFinal:0.010,winCup:0.004},
+  OTT:{make2:0.000,make3:0.000,makeFinal:0.000,winCup:0.000},
+  PIT:{make2:0.138,make3:0.030,makeFinal:0.010,winCup:0.004}
+};
+
 function probabilityNumber(v){
   if(v===null||v===undefined)return null;
   if(typeof v==='string')v=v.replace('%','').trim();
-  let n=Number(v);
+  const n=Number(v);
   if(!Number.isFinite(n))return null;
-  if(n>1)n=n/100;
-  return n>=0?n:null;
+  return n>1?n/100:n;
 }
-function normalizeOdds(data){
+function normalizeCode(raw){
+  if(!raw)return '';
+  let s=String(raw).trim().toUpperCase().replace(/[^A-Z]/g,'');
+  const aliases={LA:'LAK',LOSANGELES:'LAK',LAKINGS:'LAK',TAMPA:'TBL',TAMPABAY:'TBL',TB:'TBL',VGS:'VGK',VEGAS:'VGK',UTAH:'UTA'};
+  if(aliases[s])s=aliases[s];
+  if(CODE_TEAM[s])return s;
+  const nameMap={
+    COLORADOAVALANCHE:'COL',AVALANCHE:'COL',DALLASSTARS:'DAL',STARS:'DAL',MINNESOTAWILD:'MIN',WILD:'MIN',
+    VEGASGOLDENKNIGHTS:'VGK',GOLDENKNIGHTS:'VGK',UTAHMAMMOTH:'UTA',UTAHHOCKEYCLUB:'UTA',MAMMOTH:'UTA',
+    EDMONTONOILERS:'EDM',OILERS:'EDM',ANAHEIMDUCKS:'ANA',DUCKS:'ANA',BOSTONBRUINS:'BOS',BRUINS:'BOS',
+    BUFFALOSABRES:'BUF',SABRES:'BUF',MONTREALCANADIENS:'MTL',CANADIENS:'MTL',TAMPABAYLIGHTNING:'TBL',LIGHTNING:'TBL',
+    CAROLINAHURRICANES:'CAR',HURRICANES:'CAR',OTTAWASENATORS:'OTT',SENATORS:'OTT',PITTSBURGHPENGUINS:'PIT',PENGUINS:'PIT',
+    PHILADELPHIAFLYERS:'PHI',FLYERS:'PHI',LOSANGELESKINGS:'LAK',KINGS:'LAK'
+  };
+  return nameMap[s]||'';
+}
+function readRoundOddsObj(obj){
+  if(!obj||typeof obj!=='object')return null;
+  const get=(keys)=>{for(const k of keys){if(obj[k]!==undefined){const p=probabilityNumber(obj[k]);if(p!==null)return p;}}return null;};
+  const make2=get(['make2','makeSecond','make2nd','make_2nd_round','make2ndRound','makeRound2','Make 2nd Round']);
+  const make3=get(['make3','makeThird','make3rd','make_3rd_round','make3rdRound','makeRound3','Make 3rd Round']);
+  const makeFinal=get(['makeFinal','make_final','makeStanleyCupFinal','makeSCF','Make Final']);
+  const winCup=get(['winCup','cupOdds','stanleyCupOdds','stanleyCup','cup','Win Cup']);
+  if(make2===null&&make3===null&&makeFinal===null&&winCup===null)return null;
+  return {make2:Math.max(0,make2??0),make3:Math.max(0,make3??0),makeFinal:Math.max(0,makeFinal??0),winCup:Math.max(0,winCup??0)};
+}
+function normalizeRoundOdds(data){
   const out={};
-  const add=(team,val)=>{const t=shortTeamName(team);const p=probabilityNumber(val);if(t&&p!==null&&p>0)out[t]=p;};
-  if(data&&typeof data==='object'&&!Array.isArray(data))Object.entries(data).forEach(([k,v])=>{if(typeof v==='number'||typeof v==='string')add(k,v);});
-  const cupKeys=['cupOdds','stanleyCupOdds','stanleyCup','cup','winCup','cupWin','probability','odds','championship','championshipOdds'];
-  const teamKeys=['team','teamName','name','shortName','fullName','displayName','abbrev','abbreviation'];
-  function scan(x){
-    if(!x)return;
-    if(Array.isArray(x)){x.forEach(scan);return;}
-    if(typeof x!=='object')return;
-    let team=null,prob=null;
-    for(const k of teamKeys){
-      if(x[k]!==undefined&&typeof x[k]!=='object'){team=x[k];break;}
-      if(x[k]&&typeof x[k]==='object')for(const kk of teamKeys){if(x[k][kk]!==undefined){team=x[k][kk];break;}}
-      if(team)break;
-    }
-    for(const k of cupKeys){if(x[k]!==undefined){prob=probabilityNumber(x[k]);if(prob!==null)break;}}
-    if(team&&prob!==null)add(team,prob);
-    Object.values(x).forEach(v=>{if(v&&typeof v==='object')scan(v);});
-  }
-  scan(data);
-  return Object.keys(out).length?out:{...FALLBACK_ODDS};
+  const add=(code,obj)=>{const c=normalizeCode(code);const odds=readRoundOddsObj(obj);if(c&&odds)out[c]=odds;};
+  if(data&&data.teams&&typeof data.teams==='object'&&!Array.isArray(data.teams))Object.entries(data.teams).forEach(([code,obj])=>add(code,obj));
+  const rows=Array.isArray(data)?data:(Array.isArray(data?.teams)?data.teams:[]);
+  rows.forEach(row=>{const code=row.team||row.code||row.abbrev||row.abbreviation||row.name||row.teamName;add(code,row);});
+  return Object.keys(out).length?out:JSON.parse(JSON.stringify(FALLBACK_ROUND_ODDS));
 }
 async function fetchPoolOdds(){
-  try{
-    const r=await fetch('odds.json?cb='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error('odds.json HTTP '+r.status);
-    const data=await r.json();
-    oddsError=false;
-    return normalizeOdds(data);
-  }catch(e){
-    console.warn('Odds fetch failed, using fallback odds:',e);
-    oddsError=true;
-    return {...FALLBACK_ODDS};
+  const cacheBust='?cb='+Date.now();
+  const repoBase=location.pathname.replace(/\/[^/]*$/, '/');
+  const urls=['./odds.json'+cacheBust, repoBase+'odds.json'+cacheBust];
+  let lastErr=null;
+  for(const url of urls){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)throw new Error(url+' HTTP '+r.status);
+      const data=await r.json();
+      const normalized=normalizeRoundOdds(data);
+      oddsError=false;
+      return normalized;
+    }catch(e){lastErr=e;}
   }
+  console.warn('Odds fetch failed, using fallback MoneyPuck odds:',lastErr);
+  oddsError=true;
+  return JSON.parse(JSON.stringify(FALLBACK_ROUND_ODDS));
 }
-function strength(team,odds){return Math.max(0.005,odds[team]||FALLBACK_ODDS[team]||0.04);}
-function matchupWinner(a,b,odds,series){
-  if(!a)return b;if(!b)return a;if(series&&series.winner)return series.winner;
-  const aw=series&&series.t1===a?series.w1:series&&series.t2===a?series.w2:0;
-  const bw=series&&series.t1===b?series.w1:series&&series.t2===b?series.w2:0;
-  const sa=strength(a,odds)*Math.pow(1.18,aw-bw), sb=strength(b,odds)*Math.pow(1.18,bw-aw);
-  return Math.random()<sa/(sa+sb)?a:b;
+function teamCode(team){return TEAM_CODE[team]||normalizeCode(team);}
+function oddsFor(team,odds){return odds[teamCode(team)]||FALLBACK_ROUND_ODDS[teamCode(team)]||{make2:0.05,make3:0.025,makeFinal:0.01,winCup:0.005};}
+function roundWeight(team,roundNum,odds){
+  const o=oddsFor(team,odds);
+  if(roundNum===1)return Math.max(0.0001,o.make2);
+  if(roundNum===2)return Math.max(0.0001,o.make2>0?o.make3/o.make2:o.make3||o.winCup||0.0001);
+  if(roundNum===3)return Math.max(0.0001,o.make3>0?o.makeFinal/o.make3:o.makeFinal||o.winCup||0.0001);
+  if(roundNum===4)return Math.max(0.0001,o.makeFinal>0?o.winCup/o.makeFinal:o.winCup||0.0001);
+  return Math.max(0.0001,o.winCup||0.0001);
 }
 function existingSeries(a,b,roundNum){return seriesList.find(s=>s.roundNum===roundNum&&seriesKey(s.t1,s.t2)===seriesKey(a,b))||null;}
+function matchupWinner(a,b,roundNum,odds){
+  if(!a)return b;if(!b)return a;
+  const existing=existingSeries(a,b,roundNum);
+  if(existing&&existing.winner)return existing.winner;
+  const wa=roundWeight(a,roundNum,odds), wb=roundWeight(b,roundNum,odds);
+  return Math.random()<wa/(wa+wb)?a:b;
+}
 function simulateBracket(odds){
   const r1Pairs=[['Colorado','LA Kings'],['Dallas','Minnesota'],['Vegas','Utah'],['Edmonton','Anaheim'],['Boston','Buffalo'],['Montreal','Tampa Bay'],['Carolina','Ottawa'],['Pittsburgh','Philadelphia']];
-  const r1=r1Pairs.map(([a,b])=>matchupWinner(a,b,odds,existingSeries(a,b,1)));
+  const r1=r1Pairs.map(([a,b])=>matchupWinner(a,b,1,odds));
   const r2Pairs=[[r1[0],r1[1]],[r1[2],r1[3]],[r1[4],r1[5]],[r1[6],r1[7]]];
-  const r2=r2Pairs.map(([a,b])=>matchupWinner(a,b,odds,existingSeries(a,b,2)));
+  const r2=r2Pairs.map(([a,b])=>matchupWinner(a,b,2,odds));
   const r3Pairs=[[r2[0],r2[1]],[r2[2],r2[3]]];
-  const r3=r3Pairs.map(([a,b])=>matchupWinner(a,b,odds,existingSeries(a,b,3)));
-  const cup=matchupWinner(r3[0],r3[1],odds,existingSeries(r3[0],r3[1],4));
+  const r3=r3Pairs.map(([a,b])=>matchupWinner(a,b,3,odds));
+  const cup=matchupWinner(r3[0],r3[1],4,odds);
   return{r1,r2,r3,cup};
 }
 function scoreScenario(p,sim){
@@ -417,7 +461,8 @@ function scoreScenario(p,sim){
   return total;
 }
 async function runPoolSim(){
-  const odds=await fetchPoolOdds(), sims=10000, totals={}, wins={};
+  const odds=await fetchPoolOdds();
+  const sims=20000, totals={}, wins={};
   PLAYERS.forEach(p=>{totals[p.name]=0;wins[p.name]=0;});
   for(let i=0;i<sims;i++){
     const sim=simulateBracket(odds);
@@ -427,26 +472,32 @@ async function runPoolSim(){
     const tied=scores.filter(s=>s.score===best);
     tied.forEach(s=>wins[s.name]+=1/tied.length);
   }
-  poolProjection=PLAYERS.map(p=>({name:p.name,cup:p.cup,winPct:wins[p.name]/sims*100,expPts:totals[p.name]/sims})).sort((a,b)=>b.winPct-a.winPct);
+  poolProjection=PLAYERS.map(p=>({name:p.name,cup:p.cup,winPct:wins[p.name]/sims*100,expPts:totals[p.name]/sims})).sort((a,b)=>b.winPct-a.winPct || b.expPts-a.expPts);
   renderPoolOdds();
 }
 function renderPoolOdds(){
   const el=document.getElementById('poolOdds');if(!el)return;
   if(!poolProjection){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--silver)">Loading pool odds...</div>';return;}
   const medals=['🥇','🥈','🥉'],cls=['p1','p2','p3'];
-  let html=`<div class="info-banner">📊 Simulates 10,000 possible playoff outcomes using <b>odds.json</b>. ${oddsError?'Using fallback odds because odds.json could not be read.':'Odds are loaded from your hourly GitHub Action file.'}</div>`;
+  let html=`<div class="info-banner">📊 Simulates 20,000 playoff outcomes using MoneyPuck round odds from <b>odds.json</b>. It scores every full bracket: R1 = 1, R2 = 2, CF = 3, Cup = 5. ${oddsError?'Using fallback odds because odds.json could not be read.':'Odds loaded from your hourly GitHub Action file.'}</div>`;
   html+='<div class="section-title">Chance to Win the Pool</div>';
   poolProjection.forEach((p,i)=>{
-    html+=`<div class="odds-card ${cls[i]||''}"><div style="flex:1"><div class="odds-name">${medals[i]||(i+1)} ${p.name}</div><div class="score-breakdown"><span class="score-pill">Expected: ${p.expPts.toFixed(1)} pts</span><span class="cup-pick">🏒 ${p.cup}</span></div><div class="odds-bar"><div class="odds-fill" style="width:${Math.min(100,p.winPct).toFixed(1)}%"></div></div></div><div><div class="odds-percent">${p.winPct.toFixed(1)}%</div><div class="odds-sub">to win</div></div></div>`;
+    html+=`<div class="odds-card ${cls[i]||''}"><div style="flex:1"><div class="odds-name">${medals[i]||(i+1)} ${displayPlayerName(p.name)}</div><div class="score-breakdown"><span class="score-pill">Expected: ${p.expPts.toFixed(1)} pts</span><span class="cup-pick">🏒 ${p.cup}</span></div><div class="odds-bar"><div class="odds-fill" style="width:${Math.min(100,p.winPct).toFixed(1)}%"></div></div></div><div><div class="odds-percent">${p.winPct.toFixed(1)}%</div><div class="odds-sub">to win</div></div></div>`;
   });
   el.innerHTML=html;
 }
 
 function setSyncStatus(s){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncStatus');dot.className='sync-dot';if(s==='live'){dot.classList.add('live');lbl.textContent='Live';}else if(s==='loading'){dot.classList.add('loading');lbl.textContent='Fetching NHL results...';}else{dot.classList.add('error');lbl.textContent='API error — retrying';}}
 function showTab(id,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');el.classList.add('active');}
-fetchBracket();
-runPoolSim();
-setInterval(()=>{fetchBracket();runPoolSim();},5*60*1000);
+async function init(){
+  await fetchBracket();
+  await runPoolSim();
+}
+init();
+setInterval(async()=>{
+  await fetchBracket();
+  await runPoolSim();
+},5*60*1000);
 
 </script>
 </body>
