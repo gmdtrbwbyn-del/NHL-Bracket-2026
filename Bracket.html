@@ -243,10 +243,37 @@ function r1Winner(key){
 
 function calcScore(p){
   let total=0,b={r1:0,r2:0,r3:0,cup:0};
-  if(roundComplete(1))Object.entries(p.r1).forEach(([k,pick])=>{if(r1Winner(k)===pick){total+=1;b.r1+=1;}});
-  if(roundComplete(2)){const w=winnersForRound(2);p.r2.forEach(pick=>{if(w.includes(pick)){total+=2;b.r2+=2;}});}
-  if(roundComplete(3)){const w=winnersForRound(3);p.r3.forEach(pick=>{if(w.includes(pick)){total+=3;b.r3+=3;}});}
-  if(roundComplete(4)){const w=winnersForRound(4)[0];if(p.cup===w){total+=5;b.cup+=5;}}
+
+  // Award points as each individual series finishes — no need to wait for the whole round.
+  Object.entries(p.r1).forEach(([k,pick])=>{
+    if(r1Winner(k)===pick){
+      total+=1;
+      b.r1+=1;
+    }
+  });
+
+  const r2w=winnersForRound(2);
+  p.r2.forEach(pick=>{
+    if(r2w.includes(pick)){
+      total+=2;
+      b.r2+=2;
+    }
+  });
+
+  const r3w=winnersForRound(3);
+  p.r3.forEach(pick=>{
+    if(r3w.includes(pick)){
+      total+=3;
+      b.r3+=3;
+    }
+  });
+
+  const cupWinner=winnersForRound(4)[0];
+  if(cupWinner && p.cup===cupWinner){
+    total+=5;
+    b.cup+=5;
+  }
+
   return{total,b};
 }
 function renderAll(){renderLeaderboard();renderSeries();renderPicks();}
@@ -265,7 +292,7 @@ function renderLeaderboard(){
 }
 function renderSeries(){
   const rl=['Round 1 (1pt)','Round 2 (2pts)','Conference Finals (3pts)','Stanley Cup Final (5pts)'];
-  let html=`<div class="info-banner">🔄 Auto-refreshes every 5 min. Points awarded once all series in a round finish.</div>`;
+  let html=`<div class="info-banner">🔄 Auto-refreshes every 5 min. Points update as soon as each series has a winner.</div>`;
   [1,2,3,4].forEach(n=>{
     const list=seriesForRound(n);
     html+=`<div class="section-title">${rl[n-1]}</div><div class="series-grid">`;
