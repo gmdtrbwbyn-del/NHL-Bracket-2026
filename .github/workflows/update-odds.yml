@@ -13,124 +13,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+      - uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
-      - name: Install dependencies
+      - name: Install deps
+        run: pip install beautifulsoup4 requests
+
+      - name: Scrape MoneyPuck
         run: |
-          pip install playwright
-          playwright install chromium
+          python <<EOF
+          import requests, json
+          from bs4 import BeautifulSoup
 
-      - name: Scrape MoneyPuck playoff odds
-        run: |
-          python - <<'PY'
-          import json
-          import re
-          from datetime import datetime, timezone
-          from playwright.sync_api import sync_playwright
+          url = "https://moneypuck.com/predictions.htm"
+          html = requests.get(url).text
+          soup = BeautifulSoup(html, "html.parser")
 
-          URL = "https://moneypuck.com/predictions.htm"
+          teams = {}
 
-          def pct_to_float(value):
-              if value is None:
-                  return None
-              text = str(value).strip().replace("%", "")
-              if text == "":
-                  return None
-              try:
-                  return round(float(text) / 100, 4)
-              except:
-                  return None
+          rows = soup.select("table tr")
 
-          with sync_playwright() as p:
-              browser = p.chromium.launch()
-              page = browser.new_page()
-              page.goto(URL, wait_until="networkidle", timeout=60000)
-              page.wait_for_timeout(3000)
+          for row in rows:
+              cols = [c.text.strip() for c in row.find_all("td")]
+              if len(cols) >= 5:
+                  team = cols[0]
+                  try:
+                      teams[team] = {
+                          "make2": float(cols[1].replace('%',''))/100,
+                          "make3": float(cols[2].replace('%',''))/100,
+                          "makeFinal": float(cols[3].replace('%',''))/100,
+                          "winCup": float(cols[4].replace('%',''))/100
+                      }
+                  except:
+                      pass
 
-              tables = page.locator("table")
-              if tables.count() == 0:
-                  raise Exception("No tables found on MoneyPuck page")
-
-              table = tables.nth(0)
-
-              headers = table.locator("thead tr th").all_inner_texts()
-              if not headers:
-                  headers = table.locator("tr").nth(0).locator("th,td").all_inner_texts()
-
-              rows = []
-              tr_count = table.locator("tbody tr").count()
-
-              if tr_count == 0:
-                  tr_count = table.locator("tr").count()
-                  start = 1
-              else:
-                  start = 0
-
-              for i in range(start, tr_count):
-                  row = table.locator("tbody tr").nth(i) if table.locator("tbody tr").count() else table.locator("tr").nth(i)
-                  cells = row.locator("th,td").all_inner_texts()
-                  if len(cells) >= 5:
-                      rows.append(cells)
-
-              browser.close()
-
-          odds = {}
-
-          for cells in rows:
-              team = cells[0].strip()
-              team = re.sub(r"[^A-Z]", "", team)
-
-              if not team:
-                  continue
-
-              item = {}
-
-              for idx, header in enumerate(headers):
-                  if idx >= len(cells):
-                      continue
-
-                  h = header.lower().strip()
-                  val = pct_to_float(cells[idx])
-
-                  if val is None:
-                      continue
-
-                  if "make 2" in h or "make 2nd" in h:
-                      item["make2"] = val
-                  elif "make 3" in h or "make 3rd" in h:
-                      item["make3"] = val
-                  elif "make final" in h:
-                      item["makeFinal"] = val
-                  elif "win cup" in h:
-                      item["winCup"] = val
-
-              if item:
-                  odds[team] = item
-
-          output = {
-              "source": URL,
-              "updatedAt": datetime.now(timezone.utc).isoformat(),
-              "teams": odds
+          data = {
+              "updatedAt": __import__("datetime").datetime.utcnow().isoformat(),
+              "teams": teams
           }
 
-          with open("odds.json", "w") as f:
-              json.dump(output, f, indent=2)
+          with open("odds.json","w") as f:
+              json.dump(data,f,indent=2)
+          EOF
 
-          print(json.dumps(output, indent=2))
-          PY
-
-      - name: Commit changes
+      - name: Commit
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add odds.json
-          git commit -m "Update MoneyPuck odds" || echo "No changes"
+          git commit -m "Update odds" || echo "No changes"
           git push
