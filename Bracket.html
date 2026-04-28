@@ -105,11 +105,13 @@
   <div class="tab" onclick="showTab('series',this)">🏒 Series</div>
   <div class="tab" onclick="showTab('picks',this)">🎯 All Picks</div>
   <div class="tab" onclick="showTab('poolOdds',this)">📊 Pool Odds</div>
+  <div class="tab" onclick="showTab('liveGames',this)">📺 Live Games</div>
 </div>
 <div id="leaderboard" class="view active"><div style="padding:40px;text-align:center;color:var(--silver)">Loading scores...</div></div>
 <div id="series" class="view"></div>
 <div id="picks" class="view"></div>
 <div id="poolOdds" class="view"><div style="padding:40px;text-align:center;color:var(--silver)">Loading pool odds...</div></div>
+<div id="liveGames" class="view"><div style="padding:40px;text-align:center;color:var(--silver)">Loading live games...</div></div>
 <script>
 const PLAYERS = [
   { name:'Matt', cup:'Colorado',
@@ -487,16 +489,58 @@ function renderPoolOdds(){
   el.innerHTML=html;
 }
 
+async function fetchLiveGames(){
+  const el=document.getElementById('liveGames');
+  if(!el)return;
+  el.innerHTML='<div class="info-banner">📺 Loading tonight\'s NHL games...</div>';
+  try{
+    const res=await fetch('https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?limit=100&_=' + Date.now());
+    if(!res.ok)throw new Error('ESPN scoreboard request failed');
+    const data=await res.json();
+    const games=data.events||[];
+    if(!games.length){
+      el.innerHTML='<div class="info-banner">No NHL games found for tonight.</div>';
+      return;
+    }
+    let html='<div class="info-banner">📺 Live scores from ESPN scoreboard. Refreshes every 60 seconds.</div>';
+    html+='<div class="section-title">Tonight\'s NHL Games</div><div class="series-grid">';
+    games.forEach(game=>{
+      const comp=(game.competitions&&game.competitions[0])||{};
+      const statusObj=(comp.status&&comp.status.type)||{};
+      const detail=statusObj.detail||statusObj.shortDetail||statusObj.description||'Scheduled';
+      const state=statusObj.state||'';
+      const competitors=comp.competitors||[];
+      const away=competitors.find(c=>c.homeAway==='away')||competitors[0]||{};
+      const home=competitors.find(c=>c.homeAway==='home')||competitors[1]||{};
+      const awayName=away.team?.shortDisplayName||away.team?.displayName||'Away';
+      const homeName=home.team?.shortDisplayName||home.team?.displayName||'Home';
+      const awayScore=away.score ?? '0';
+      const homeScore=home.score ?? '0';
+      let badgeClass='series-pending';
+      if(state==='in')badgeClass='series-inprogress';
+      if(state==='post')badgeClass='series-winner';
+      html+=`<div class="series-row ${state==='post'?'done':''}"><div class="series-matchup">${awayName} ${awayScore} @ ${homeName} ${homeScore}</div><span class="${badgeClass}">${detail}</span></div>`;
+    });
+    html+='</div>';
+    el.innerHTML=html;
+  }catch(e){
+    console.error(e);
+    el.innerHTML='<div class="error-banner">Could not load live NHL games right now. Try refreshing in a minute.</div>';
+  }
+}
+
 function setSyncStatus(s){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncStatus');dot.className='sync-dot';if(s==='live'){dot.classList.add('live');lbl.textContent='Live';}else if(s==='loading'){dot.classList.add('loading');lbl.textContent='Fetching NHL results...';}else{dot.classList.add('error');lbl.textContent='API error — retrying';}}
 function showTab(id,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');el.classList.add('active');}
 async function init(){
   await fetchBracket();
   await runPoolSim();
+  await fetchLiveGames();
 }
 init();
 setInterval(async()=>{
   await fetchBracket();
   await runPoolSim();
+  await fetchLiveGames();
 },5*60*1000);
 
 </script>
